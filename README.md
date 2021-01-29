@@ -1,2 +1,9 @@
-# logPkbAlerts
-Cloud function to log pkb alerts
+
+# Cloudfunction for BigQuery Alerting 
+
+## Installing
+
+
+
+## Using
+

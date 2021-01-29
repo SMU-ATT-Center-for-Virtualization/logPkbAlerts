@@ -1,0 +1,7 @@
+TEST: "ping"
+THRESHHOLD: "4"
+METRIC: "Average Latency"
+ABOVEBELOW: "above"
+MACHINETYPE: "n1-standard-16"
+HISTRANGEDAYS: "10"
+FUNCTION_ON: "True"
