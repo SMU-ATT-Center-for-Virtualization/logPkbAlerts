@@ -1,0 +1,42 @@
+Figure out scheduled historic throughput/latency queries
+
+	
+	gets all iperf data from last 10 days
+
+	groups by sending_region, receiving_region, ip_type, sending_thread_count, machine_type
+	and gets avg/standard dev over last 10 days
+	saves in table historic_* with entry_date as the current date
+
+	changing all of these to include all regions in world
+
+
+
+pkb_alerts table
+	there seem to be duplicate entries
+	I've removed existing duplicate entries
+
+# TODO
+	make sure additional duplicates aren't pushed to pkb_alerts table
+
+	make another cloud function that creates alerts for throughput
+	retroactively run function for past days
+
+	add gartner_all to latency queries.
+	*DONE* Need to change historic_latency to include machine_type column
+	*DONE* Need to change all scheduled queries to write to machine_type column and select machine_type
+	Need to change logPkbAlerts script to make sure it handle machine_type correctly
+
+	Seems to be a problem in pkb_alerts where sample date is before hist_entry_date.
+		I think this should not happen
+
+	add machine_type and ip_type in pkb_alerts
+
+	TODO make this command run after pkb_scheduler every time
+		gsutil -m rsync -r /tmp/perfkitbenchmarker/runs/ gs://smu_pkb_run_logs
+
+		OR better yet, figure out a different way to trigger this cloud function
+
+	then delete logs
+
+See if I can improve them
+	

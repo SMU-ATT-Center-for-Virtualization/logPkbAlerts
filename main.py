@@ -176,18 +176,10 @@ ORDER BY sample_timestamp
         bigquery.ScalarQueryParameter("test", "STRING", "ping"),
         # bigquery.ScalarQueryParameter("test", "STRING", os.environ.get("TEST", "ping")),
         bigquery.ScalarQueryParameter("metric", "STRING", "Average Latency"),
-        # bigquery.ScalarQueryParameter("metric", "STRING", os.environ.get("METRIC", "Average Latency")),
-        # bigquery.ScalarQueryParameter("threshhold", "INT64", "3"),
         bigquery.ScalarQueryParameter("threshhold", "INT64", os.environ.get("LATENCY_THRESHHOLD", "3")),
         bigquery.ScalarQueryParameter("percentage_threshhold", "FLOAT", os.environ.get("LATENCY_PERCENTAGE_THRESHHOLD", "0.05")),
-        #bigquery.ScalarQueryParameter("abovebelow", "STRING", "above"),
-        # bigquery.ScalarQueryParameter("abovebelow", "STRING", os.environ.get("ABOVEBELOW", "above")),
-        #bigquery.ScalarQueryParameter("machinetype", "STRING", "n1-standard-16"),
         bigquery.ScalarQueryParameter("machinetype", "STRING", os.environ.get("MACHINETYPE","n1-standard-16")),
-        #bigquery.ScalarQueryParameter("histrangedays", "INT64", 10),
         bigquery.ScalarQueryParameter("histrangedays", "INT64", os.environ.get("HISTRANGEDAYS", "10")),
-        
-        #bigquery.ScalarQueryParameter("last_checked_timestamp", "TIMESTAMP", datetime.datetime(2019, 1, 2, 8, 0, tzinfo=pytz.UTC)),
     ]
 
     # Query Config
@@ -404,20 +396,10 @@ order by sample_timestamp
     
     query_params = [
         bigquery.ScalarQueryParameter("test", "STRING", "iperf"),
-        # bigquery.ScalarQueryParameter("test", "STRING", 'os.environ.get("TEST", "ping")'),
         bigquery.ScalarQueryParameter("metric", "STRING", "Throughput"),
-        # bigquery.ScalarQueryParameter("metric", "STRING", os.environ.get("METRIC", "Average Latency")),
-        #bigquery.ScalarQueryParameter("threshhold", "INT64", "3"),
         bigquery.ScalarQueryParameter("threshhold", "INT64", os.environ.get("THROUGHPUT_THRESHHOLD", "3")),
         bigquery.ScalarQueryParameter("percentage_threshhold", "FLOAT", os.environ.get("THROUGHPUT_PERCENTAGE_THRESHHOLD", "0.05")),
-        #bigquery.ScalarQueryParameter("abovebelow", "STRING", "above"),
-        # bigquery.ScalarQueryParameter("abovebelow", "STRING", os.environ.get("ABOVEBELOW", "above")),
-        #bigquery.ScalarQueryParameter("machinetype", "STRING", "n1-standard-16"),
-        # bigquery.ScalarQueryParameter("machinetype", "STRING", os.environ.get("MACHINETYPE","n1-standard-16")),
-        #bigquery.ScalarQueryParameter("histrangedays", "INT64", 10),
         bigquery.ScalarQueryParameter("histrangedays", "INT64", os.environ.get("HISTRANGEDAYS", "10")),
-        
-        #bigquery.ScalarQueryParameter("last_checked_timestamp", "TIMESTAMP", datetime.datetime(2019, 1, 2, 8, 0, tzinfo=pytz.UTC)),
     ]
 
     # Query Config
