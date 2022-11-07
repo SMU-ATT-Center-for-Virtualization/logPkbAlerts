@@ -1,0 +1,187 @@
+
+CREATE OR REPLACE PROCEDURE daily_tests.generate_alerts_generic_iperf_netperf(
+  _table_name STRING, _test_type STRING, _machine_type STRING,
+  _threshold FLOAT64, _percentage_threshold FLOAT64,
+  _hist_range INT64)
+BEGIN
+-- DECLARE _table_name STRING DEFAULT 'smu-benchmarking.daily_tests_views.n2_standard_80_tests_iperf';
+-- DECLARE _test_type STRING DEFAULT 'iperf';
+-- DECLARE _machine_type STRING DEFAULT 'n2-standard-80';
+-- DECLARE _threshold FLOAT64 DEFAULT 1;
+-- DECLARE _percentage_threshold FLOAT64 DEFAULT 0.05;
+-- DECLARE _hist_range INT64 DEFAULT 10;
+
+
+-- DECLARE table_name STRING DEFAULT _table_name;
+  -- 
+DECLARE _queryString STRING; 
+SET _queryString = """
+CREATE TEMP TABLE alert_results AS
+with enumerated_tests as (
+SELECT
+    *,
+    '"""||_table_name||"""' as table_name,
+    ROW_NUMBER() OVER(PARTITION BY
+      sending_region,
+      receiving_region,
+      machine_type,
+      ip_type,
+      vm_1_gce_egress_bandwidth_tier,
+      vm_1_gce_nic_type,
+      network_tier,
+      vm_1_placement_group_style,
+      sending_zone, receiving_zone,
+      unit,
+      metric,
+      vm_1_mtu,
+      sending_thread_count
+      ORDER BY date_time DESC
+    ) AS row_num
+  FROM
+    `"""||_table_name||"""`
+  WHERE
+    metric IN ('TCP_RR_Latency_p50', 'TCP_STREAM_Throughput', 'Throughput')
+    AND DATE(date_time) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL ("""||_hist_range||""" + 1) day)
+    AND CURRENT_DATE()
+)
+SELECT
+  historic_tests.sending_region,
+  historic_tests.receiving_region, 
+  historic_tests.sending_zone, 
+  historic_tests.receiving_zone,
+  current_tests.test,
+  current_tests.metric,
+  current_tests.machine_type,
+  historic_tests.hist_range_days,
+  current_tests.vm_1_mtu AS mtu,
+  current_tests.vm_1_gce_egress_bandwidth_tier AS egress_bandwidth_tier,
+  current_tests.vm_1_gce_nic_type AS nic_type,
+  current_tests.network_tier AS network_tier,
+  current_tests.vm_1_placement_group_style as placement_group_style,
+  round(hist_avg, 5) as hist_avg,
+  round(current_tests.value, 5) as sample_value,
+  current_tests.date_time as sample_date,
+  string(current_tests.date_time) as sample_date_str,
+  current_tests.run_uri, 
+  current_tests.sample_uri,
+  IF(current_tests.value > (historic_tests.hist_avg + historic_tests.std_dev * """||_threshold||"""), 
+        round((historic_tests.hist_avg + historic_tests.std_dev * """||_threshold||"""), 5),
+        round((historic_tests.hist_avg - historic_tests.std_dev * """||_threshold||"""), 5)) as threshhold,
+  (current_tests.value > (historic_tests.hist_avg + historic_tests.std_dev * """||_threshold||""") OR 
+   current_tests.value < (historic_tests.hist_avg - historic_tests.std_dev * """||_threshold||""")) as alert, 
+  IF(current_tests.value > (historic_tests.hist_avg + historic_tests.std_dev * """||_threshold||"""), 
+  CONCAT('value (', 
+          CAST(round(current_tests.value, 5) as STRING), 
+          ') ', 
+          CAST(1 as STRING),
+          ' std devs ', 'above', ' mean (',
+          CAST(round(hist_avg, 5) as STRING),
+          ')'),
+  CONCAT('value (', 
+          CAST(round(current_tests.value, 5) as STRING), 
+          ') ', 
+          CAST(1 as STRING),
+          ' std devs ', 'below', ' mean (',
+          CAST(round("""||_hist_range||""", 5) as STRING),
+          ')')) as alert_condition,
+  current_tests.table_name,
+  current_tests.sending_thread_count,
+
+FROM
+  (SELECT 
+      sending_region,
+      receiving_region,
+      avg(value) as hist_avg,
+      stddev(value) as std_dev,
+      """||_hist_range||""" as hist_range_days,
+      machine_type,
+      ip_type,
+      vm_1_gce_egress_bandwidth_tier,
+      vm_1_gce_nic_type,
+      network_tier,
+      vm_1_placement_group_style,
+      sending_zone, receiving_zone,
+      vm_1_mtu,
+      unit, test,  metric,
+      sending_thread_count
+    FROM enumerated_tests
+    WHERE row_num != 1
+    GROUP BY
+      sending_region,
+      receiving_region,
+      machine_type,
+      ip_type,
+      vm_1_gce_egress_bandwidth_tier,
+      vm_1_gce_nic_type,
+      network_tier,
+      vm_1_placement_group_style,
+      sending_zone, receiving_zone,
+      vm_1_mtu,
+      unit, test,  metric,
+      sending_thread_count
+  ) as historic_tests
+JOIN
+  (SELECT 
+      sending_region,
+      receiving_region,
+      value,
+      machine_type,
+      ip_type,
+      vm_1_gce_egress_bandwidth_tier,
+      vm_1_gce_nic_type,
+      network_tier,
+      vm_1_placement_group_style,
+      sending_zone, receiving_zone,
+      vm_1_mtu,
+      unit, test,
+      metric,
+      date_time,
+      sample_uri,
+      run_uri,
+      table_name,
+      sending_thread_count
+    FROM enumerated_tests
+    WHERE
+      row_num = 1
+      AND date_time > (SELECT max(sample_date) 
+                       FROM `smu-benchmarking.reporting.pkb_advanced_networking_alerts`
+                       WHERE 
+                          test = '"""||_test_type||"""' 
+                          AND machine_type = '"""||_machine_type||"""' )
+  ) as current_tests
+ON
+  historic_tests.sending_region = current_tests.sending_region
+  AND historic_tests.receiving_region = current_tests.receiving_region
+  AND historic_tests.sending_zone = current_tests.sending_zone
+  AND historic_tests.receiving_zone = current_tests.receiving_zone
+  AND historic_tests.machine_type = current_tests.machine_type 
+  AND historic_tests.ip_type = current_tests.ip_type 
+  AND historic_tests.test = current_tests.test
+  AND historic_tests.metric = current_tests.metric
+
+  AND historic_tests.vm_1_gce_egress_bandwidth_tier = current_tests.vm_1_gce_egress_bandwidth_tier
+  AND historic_tests.vm_1_gce_nic_type = current_tests.vm_1_gce_nic_type
+  AND historic_tests.network_tier = current_tests.network_tier
+  AND historic_tests.vm_1_placement_group_style = current_tests.vm_1_placement_group_style
+  AND historic_tests.vm_1_mtu = current_tests.vm_1_mtu
+  AND historic_tests.sending_thread_count = current_tests.sending_thread_count
+  AND 
+      ((current_tests.value > (historic_tests.hist_avg + historic_tests.std_dev * """||_threshold||""") 
+        AND current_tests.value > historic_tests.hist_avg + (historic_tests.hist_avg * """||_percentage_threshold||"""))
+      OR
+       (current_tests.value < (historic_tests.hist_avg - historic_tests.std_dev * """||_threshold||""") 
+        AND current_tests.value > historic_tests.hist_avg - (historic_tests.hist_avg * """||_percentage_threshold||""")));
+""";
+
+SELECT _queryString;
+EXECUTE IMMEDIATE (_queryString);
+
+INSERT INTO `smu-benchmarking.reporting.pkb_advanced_networking_alerts`
+    (sending_region,  receiving_region, sending_zone, receiving_zone, test, metric, machine_type, hist_range_days,  mtu,  egress_bandwidth_tier,  nic_type, network_tier, placement_group_style,  hist_avg, sample_value, sample_date,  sample_date_str,  run_uri,  sample_uri, threshhold, alert,  alert_condition,  table_name, sending_thread_count)
+  SELECT 
+    sending_region, receiving_region, sending_zone, receiving_zone, test, metric, machine_type, hist_range_days,  CAST(mtu AS STRING),  egress_bandwidth_tier,  nic_type, network_tier, placement_group_style,  hist_avg, sample_value, sample_date,  sample_date_str,  run_uri,  sample_uri, threshhold, alert,  alert_condition,  table_name, sending_thread_count FROM alert_results;
+
+
+SELECT * FROM alert_results;
+
+END
